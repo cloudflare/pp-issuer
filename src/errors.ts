@@ -74,6 +74,17 @@ export class HeaderNotDefinedError extends HTTPError {
 	}
 }
 
+export class InternalCacheError extends HTTPError {
+	static CODE = 'ERROR_INTERNAL_CACHE_ERROR';
+	code: string;
+
+	constructor(message = 'Internal cache error') {
+		super(message, 500);
+		this.name = 'InternalCacheError';
+		this.code = InternalCacheError.CODE;
+	}
+}
+
 export class NotImplementedError extends HTTPError {
 	static CODE = 'ERROR_NOT_IMPLEMENTED';
 	code: string;

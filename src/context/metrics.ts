@@ -43,7 +43,7 @@ export class MetricsRegistry {
 	requestsDurationMs: HistogramType;
 	requestsTotal: CounterType;
 	signedTokenTotal: CounterType;
-	r2RequestsTotal: CounterType;
+	r2RequestsDurationMs: HistogramType;
 
 	constructor(env: Bindings, options: RegistryOptions) {
 		this.env = env;
@@ -92,7 +92,12 @@ export class MetricsRegistry {
 			'signed_token_total',
 			'Number of issued signed private tokens.'
 		);
-		this.r2RequestsTotal = this.create('counter', 'r2_requests_total', 'Number of accesses to R2');
+		this.r2RequestsDurationMs = this.create(
+			'histogram',
+			'r2_requests_duration_ms',
+			'R2 requests duration',
+			HISTOGRAM_MS_BUCKETS
+		);
 	}
 
 	private defaultLabels(): DefaultLabels {

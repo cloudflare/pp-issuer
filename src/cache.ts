@@ -172,21 +172,40 @@ const R2Method = {
 	HEAD: 'head',
 	LIST: 'list',
 };
+const R2MethodSet = new Set(Object.values(R2Method));
 
 export class CachedR2Bucket {
+	private bucket: R2Bucket;
 	constructor(
 		private ctx: Context,
-		private bucket: R2Bucket,
+		bucket: R2Bucket,
 		private cache: ReadableCache,
 		private ttl_in_ms = DEFAULT_R2_BUCKET_CACHE_TTL_IN_MS
-	) {}
+	) {
+		this.bucket = new Proxy(bucket, {
+			get: (target, prop, receiver) => {
+				const method = Reflect.get(target, prop, receiver);
+				if (R2MethodSet.has(prop.toString())) {
+					const startTime = ctx.performance.now();
+					return async function (...args: unknown[]) {
+						try {
+							return await Reflect.apply(method, target, args);
+						} finally {
+							const duration = ctx.performance.now() - startTime;
+							ctx.metrics.r2RequestsDurationMs.observe(duration, { method: prop.toString() });
+						}
+					};
+				}
+				return method;
+			},
+		});
+	}
 
 	// WARNING: key should be lowered than 1024 bytes
 	// See https://developers.cloudflare.com/r2/reference/limits/
 	head(key: string): Promise<CachedR2Object | null> {
 		const cacheKey = `head/${key}`;
 		return this.cache.read(cacheKey, async () => {
-			this.ctx.metrics.r2RequestsTotal.inc({ method: R2Method.HEAD });
 			const object = await this.bucket.head(key);
 			if (object === null) {
 				return { value: null, expiration: new Date() };
@@ -202,7 +221,6 @@ export class CachedR2Bucket {
 	list(options?: R2ListOptions | undefined): Promise<CachedR2Objects> {
 		const cacheKey = `list/${JSON.stringify(options)}`;
 		return this.cache.read(cacheKey, async () => {
-			this.ctx.metrics.r2RequestsTotal.inc({ method: R2Method.LIST });
 			const objects = await this.bucket.list(options);
 			const value = new CachedR2Objects(objects);
 			return {
@@ -217,7 +235,6 @@ export class CachedR2Bucket {
 	async get(key: string, options?: R2GetOptions): Promise<CachedR2Object | null> {
 		const cacheKey = `get/${key}`;
 		return this.cache.read(cacheKey, async () => {
-			this.ctx.metrics.r2RequestsTotal.inc({ method: R2Method.GET });
 			const object = await this.bucket.get(key, options);
 			if (object === null) {
 				return { value: null, expiration: new Date() };

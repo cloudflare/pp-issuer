@@ -4,7 +4,7 @@
 import { Bindings } from './bindings';
 import { Context } from './context';
 import { Router } from './router';
-import { HeaderNotDefinedError } from './errors';
+import { HeaderNotDefinedError, InternalCacheError } from './errors';
 import { IssuerConfigurationResponse, TokenType } from './types';
 import { b64ToB64URL, b64Tou8, b64URLtoB64, u8ToB64 } from './utils/base64';
 import {
@@ -110,7 +110,13 @@ export const handleHeadTokenDirectory = async (ctx: Context, request: Request) =
 
 export const handleTokenDirectory = async (ctx: Context, request: Request) => {
 	const cache = await getDirectoryCache();
-	const cachedResponse = await cache.match(DIRECTORY_CACHE_REQUEST);
+	let cachedResponse: Response | undefined;
+	try {
+		cachedResponse = await cache.match(DIRECTORY_CACHE_REQUEST);
+	} catch (e: unknown) {
+		const err = e as Error;
+		throw new InternalCacheError(err.message);
+	}
 	if (cachedResponse) {
 		if (request.headers.get('if-none-match') === cachedResponse.headers.get('etag')) {
 			return new Response(undefined, {
